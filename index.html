@@ -89,13 +89,24 @@
         }
 
         function endSequenceRender() {
+            const totalFingers = Object.keys(fingers).length
+            
+            let positions = []
+            Object.keys(fingers).forEach((_, i) => {
+                positions.push(i + 1)
+            });
+            // shuffle positions
+            for (let i = positions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [positions[i], positions[j]] = [positions[j], positions[i]];
+            }
             Object.keys(fingers).forEach((identifier, i) => {
                 const touch = fingers[identifier]
                 context.font = "bold 48px monospace";
                 context.fillStyle = "black";
                 context.textAlign = 'center';
                 context.textBaseline = 'middle';
-                context.fillText(i + 1, touch.x, touch.y)
+                context.fillText(positions[i], touch.x, touch.y)
             })
         }
         function render () {
