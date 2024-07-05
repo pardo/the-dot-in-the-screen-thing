@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>the dot in the screen thing</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            background-color: #000;
+        }
+        canvas {
+            margin: 0;
+            padding: 0;
+            position: absolute;
+            display: block;
+            background-color: #000;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        document.body.style.zoom = "100%";
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        // common board game colors
+        // const colors = ['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'pink', 'brown', 'black', 'white', 'orange', 'cyan', 'grey'];
+        const colors = ["#a6cee3","#1f78b4","#b2df8a","#33a02c","#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a"]
+        let usedColors = [];
+        // store each finger info {x, y, color, radius}
+        const fingers = {}
+        // loading circle animation
+        let loadingAngle = 0;
+        const loading1percent = Math.PI * 2 / 100
+        const initialLoadingSize = loading1percent * 10
+        let loadingSize = initialLoadingSize
+        // store previous and current positions of each finger to invalidate loading circle
+        let previousPos = []
+        let currentPos = []
+        // end sequence flag
+        let endSequence = false
+
+        function calculateDistance(x1, y1, x2, y2) {
+            const xDistance = x2 - x1;
+            const yDistance = y2 - y1;
+            return Math.sqrt(Math.pow(xDistance, 2) + Math.pow(yDistance, 2));
+        }
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        function randomColor() {
+            // create a random hex color that is not too dark
+            const letters = '89ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * letters.length)];
+            }
+            return color
+        }
+        function handleTouch(event) {
+            if (endSequence) {
+                return
+            }
+            event.preventDefault() // prevent scrolling and zooming
+            const rect = canvas.getBoundingClientRect();
+            // loop event.touches and draw a circle for each touch
+            for (let i = 0; i < event.touches.length; i++) {
+                const touch = event.touches[i]
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                if (fingers[touch.identifier] === undefined) {
+                    // store finger info first time
+                    fingers[touch.identifier] = { radius: window.innerWidth / 10};
+                    // grab first not used color if possible
+                    const color = (usedColors.length >= colors.length) ? randomColor() : colors.find(color => !usedColors.includes(color))
+                    fingers[touch.identifier].color = color
+                }
+                if (!usedColors.includes(fingers[touch.identifier].color)) {
+                    usedColors.push(fingers[touch.identifier].color);
+                }
+                fingers[touch.identifier].x = x;
+                fingers[touch.identifier].y = y;
+            }
+        }
+
+        function endSequenceRender() {
+            Object.keys(fingers).forEach((identifier, i) => {
+                const touch = fingers[identifier]
+                context.font = "bold 48px monospace";
+                context.fillStyle = "black";
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText(i + 1, touch.x, touch.y)
+            })
+        }
+        function render () {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            Object.keys(fingers).forEach((identifier) => {
+                const touch = fingers[identifier];
+                currentPos.push({x: touch.x, y: touch.y})
+                context.beginPath();
+                context.arc(touch.x, touch.y, touch.radius, 0, 2 * Math.PI);
+                context.fillStyle = touch.color;
+                context.fill();
+                // loading circle
+                const shift = identifier * initialLoadingSize;
+                context.beginPath();
+                context.arc(touch.x, touch.y, touch.radius * 1.2, loadingAngle+shift, loadingSize + loadingAngle + shift);
+                context.strokeStyle = touch.color;
+                context.lineWidth = window.innerWidth / 80
+                context.stroke();
+            });
+            // loading circle animation
+            loadingAngle += loading1percent * 5;
+            loadingAngle = loadingAngle % (2 * Math.PI);
+            // check if all fingers are still in the same position to increase loading circle
+            distances = []
+            for (let i = 0; i < currentPos.length; i++) {
+                if (previousPos[i] !== undefined) {
+                    distances.push(calculateDistance(previousPos[i].x, previousPos[i].y, currentPos[i].x, currentPos[i].y))
+                }
+            }
+            if (distances.filter(distance => distance > 10).length == 0) {
+                // if all fingers are still, increase loading circle
+                loadingSize += loading1percent
+                loadingSize = Math.min(loadingSize, loading1percent * 100)
+            } else {
+                loadingSize -= loading1percent
+                loadingSize = Math.max(loadingSize, loading1percent * 10)
+            }
+            previousPos = currentPos
+            currentPos = []
+            if (loadingSize >= loading1percent * 100) {
+                endSequence = true
+            }
+            setTimeout(() => {
+                if (endSequence) {
+                    endSequenceRender()
+                    return
+                }
+                requestAnimationFrame(render);
+            }, 1000/40);
+        }
+        render()
+        canvas.addEventListener('touchstart', handleTouch);
+        canvas.addEventListener('touchmove', handleTouch);
+        canvas.addEventListener('touchend', function(event) {
+            if (endSequence) {
+                return
+            }
+            loadingSize = initialLoadingSize
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                const color = fingers[event.changedTouches[i].identifier].color;
+                delete fingers[event.changedTouches[i].identifier]
+                usedColors = usedColors.filter(usedColor => usedColor !== color);
+            }
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        setTimeout(() => { resizeCanvas() }, 1000)
+    </script>
+</body>
+</html>
